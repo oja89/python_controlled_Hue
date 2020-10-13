@@ -30,7 +30,7 @@ max_t = 0
 wanted = 0
 blinked = 0
 loops = 0
-counter_step = 60 #once per x seconds? so 60 gives blink per remaining minutes
+counter_step = 10 #once per x seconds? so 60 gives blink per remaining minutes
 
 # running
 running = False
@@ -39,11 +39,11 @@ stopped = True
 lighted = False
 
 # timer values in secs
-loop_speed = 1  # 0.2 was too fast for blinking
-on_delay = 300  # time from buttonpress to light on
+loop_speed = 1  # 0.5 is fastest that works with blinking
+on_delay = 60  # time from buttonpress to light on
 t = 0  # running timer
-off_delay = 120  # from start to off?
-counter_delay = 60  # blink every minute?
+off_delay = 60  # from start to off
+counter_delay = 10  # blink every minute?
 
 def switch(direction):
     """
@@ -52,19 +52,6 @@ def switch(direction):
     path = LIGHT_PUT
     requests.put(URL + path, data=json.dumps(direction), headers=HEADERS)
     return 1
-
-
-def state():
-    """
-    Get state of light
-    """
-    path = LIGHT_GET
-    res = requests.get(URL + path)
-    dictionary = res.json()
-    if dictionary['state']['on']:
-        return 1
-    else:
-        return 0
 
 
 def last_stamp():
@@ -92,9 +79,8 @@ def button_pressed():
 
     if timestamp > max_t:
         max_t = timestamp
-        print("Newer")
         if last == I_button:
-            print("On")
+            print("Started")
             return 1
         if last == bright:
             return 0
@@ -103,10 +89,8 @@ def button_pressed():
         if last == O_button:
             return 0
         else:
-            print("Failed")
             return 0
     else:
-        # print("Same or older")
         return 0
 
 def flash():
@@ -130,7 +114,7 @@ def blinks_wanted():
     print(t)
     wanted = int((1 + t) / counter_step)  # want to blink correct amount (once for minute)
     blinking = True  # blink with the first press too
-    print("Wanted: ", wanted)
+    print("Blinking ", wanted, " times")
     print("Started")
     return 1
 
@@ -163,7 +147,7 @@ def control_loop():
         # set current to timer
         t = on_delay
         lastblink = on_delay
-        print(t)
+        print("On delay: ", on_delay)
         stopped = False
         running = True
         lighted = False
@@ -176,16 +160,16 @@ def control_loop():
     if blinking:
         if blinked < wanted:
             blinked += 1
-            print("Blink: ", blinked)
+            print("Blink number: ", blinked)
             flash()
         if blinked >= wanted:
-            print("Blinking done ", t)
             blinked = 0
             blinking = False
 
     if running:
         if t <= 0:
             switch(on)
+            print("Off delay: ", off_delay)
             running = False
             blinking = False
             stopped = False
@@ -201,6 +185,7 @@ def control_loop():
         #stay on for off_delay
         if t <= -off_delay:
             switch(off)
+            print("Switched off")
             running = False
             blinking = False
             stopped = True
@@ -209,9 +194,7 @@ def control_loop():
 
 # get last stamp first so we dont start immediately
 # also works to find that the we have access to bridge?
-print(max_t)
 max_t = last_stamp()
-print(max_t)
 
 #also switch off before loop?
 switch(off)
