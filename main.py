@@ -6,11 +6,19 @@ import requests
 # api-endpoint
 URL = "http://192.168.1.6/api/pWH0J9PLMzz5bRzy3wPgHfTOuUz2UKf3XNW13owt"
 
+LIGHT_GET = "/lights/1"
+LIGHT_PUT = "/lights/1/state"
+REMOTE_GET = "/sensors/2"
+
 HEADERS = {"Content-Type": "application/json"}
 
 # Json preformatting
 on = {"on": True}
 off = {"on": False}
+alert = {"alert": "select"}
+#brightness1 = {"bri": 254}
+#brightness2 = {"bri": 0}
+
 
 # Remote codes
 I_button = 1002
@@ -19,25 +27,25 @@ dim = 3002
 O_button = 4002
 
 # Last button press
-# TODO add function to check last timestamp at start
-max_t = "2020-10-05T14:43:41"
+#here is just one date so the new is newer?
+max_t = "2000-10-05T14:43:41"
 
 # blinker values
 wanted = 0
 blinked = 0
+i = 0
 
 # running
 running = False
 blinking = False
 stopped = True
+lighted = False
 
 # timer values in secs
-loop_speed = 2  # 1 was too fast for blinking
-# TODO check if there is faster way (brightness?) to control blinking
-on_delay = 120  # time from press to start
-blink_interval = 1  # time between blinks
+loop_speed = 0.5  # 1 was too fast for blinking
+on_delay = 300  # time from press to start
 t = 0  # running timer
-off_delay = 420  # from start to off?
+off_delay = 60  # from start to off?
 counter_delay = 60  # blink every minute?
 lastblink = 0  # counter at last blink starting
 
@@ -46,7 +54,7 @@ def switch(direction):
     """
     Switch light (on)/(off)
     """
-    path = "/lights/1/state"
+    path = LIGHT_PUT
     requests.put(URL + path, data=json.dumps(direction), headers=HEADERS)
     return 1
 
@@ -55,7 +63,7 @@ def state():
     """
     Get state of light
     """
-    path = "/lights/1"
+    path = LIGHT_GET
     res = requests.get(URL + path)
     dictionary = res.json()
     # print(dictionary['state']['on'])
@@ -69,7 +77,7 @@ def last_stamp():
     """
     Gets the last stamp from the remote
     """
-    path = "/sensors/2"
+    path = REMOTE_GET
     res = requests.get(URL + path)
     sensor = res.json()
     stamp = sensor['state']['lastupdated']
@@ -82,7 +90,7 @@ def button_pressed():
     Save time of latest press, and compare to that
     """
     global max_t
-    path = "/sensors/2"
+    path = REMOTE_GET
     res = requests.get(URL + path)
     dictionary = res.json()
     # print(dictionary['state'])
@@ -129,6 +137,14 @@ def change():
     else:
         switch(on)
 
+def flash():
+    """
+    Inbuilt flashing ability
+    """
+    path = "/lights/1/state"
+    requests.put(URL + path, data=json.dumps(alert), headers=HEADERS)
+    return 1
+
 
 def blinks_wanted():
     """
@@ -139,10 +155,10 @@ def blinks_wanted():
     global blinking
 
     lastblink = t
-    wanted = (int(t / 60)) * 2  # want to blink correct amount
-    # on and off is 2
+    print(t)
+    wanted = int((1 + t) / 60)  # want to blink correct amount (once for minute)
     blinking = True  # blink with the first press too
-    print("Blink: ", wanted)
+    print("Wanted: ", wanted)
     print("Started")
     return 0
 
@@ -157,20 +173,21 @@ def control_loop():
     global off_delay
     global counter_delay
     global lastblink
+    global i
 
     # States
     global running
     global stopped
     global blinking
+    global lighted
 
     # Counters
     global blinked
     global wanted
 
     t -= 1
+
     if stopped:
-        # switch off at the start
-        switch(off)
         if button_pressed():
             # set current to timer
             t = on_delay
@@ -178,28 +195,43 @@ def control_loop():
             print(t)
             stopped = False
             running = True
+            lighted = False
             blinks_wanted()  # sets counters and timers and blinking = true
 
     if blinking:
         if blinked < wanted:
             blinked += 1
             print("Blink: ", blinked)
-            change()
+            #change()
+            flash()
         if blinked >= wanted:
             print("Blinking done ", t)
             blinked = 0
             blinking = False
 
     if running:
-        # if last blink was 60s ago
-        if (t + counter_delay) < lastblink:
-            blinks_wanted()  # sets counters and timers and blinking = true
+
         if t <= 0:
             switch(on)
             running = False
             blinking = False
             stopped = True
-            t = 0
+            lighted = True
+        # if last blink was 60s ago
+        if t < (on_delay - (i * counter_delay)):
+            i += 1
+            blinks_wanted()  # sets counters and timers and blinking = true
+    if lighted:
+        #if light is on, ...
+        #stay on for off_delay
+        if t <= -60:
+            switch(off)
+            running = False
+            blinking = False
+            stopped = True
+            lighted = False
+
+
 
 
 # get last stamp first so we dont start immediately
@@ -207,6 +239,9 @@ def control_loop():
 print(max_t)
 max_t = last_stamp()
 print(max_t)
+
+#also switch off before loop?
+switch(off)
 
 while 1:
     # control loop here
