@@ -16,9 +16,6 @@ HEADERS = {"Content-Type": "application/json"}
 on = {"on": True}
 off = {"on": False}
 alert = {"alert": "select"}
-#brightness1 = {"bri": 254}
-#brightness2 = {"bri": 0}
-
 
 # Remote codes
 I_button = 1002
@@ -27,13 +24,13 @@ dim = 3002
 O_button = 4002
 
 # Last button press
-#here is just one date so the new is newer?
 max_t = "2000-10-05T14:43:41"
 
 # blinker values
 wanted = 0
 blinked = 0
-i = 0
+loops = 0
+counter_step = 60 #once per x seconds? so 60 gives blink per remaining minutes
 
 # running
 running = False
@@ -66,7 +63,6 @@ def state():
     path = LIGHT_GET
     res = requests.get(URL + path)
     dictionary = res.json()
-    # print(dictionary['state']['on'])
     if dictionary['state']['on']:
         return 1
     else:
@@ -93,20 +89,8 @@ def button_pressed():
     path = REMOTE_GET
     res = requests.get(URL + path)
     dictionary = res.json()
-    # print(dictionary['state'])
     last = dictionary['state']['buttonevent']
     timestamp = dictionary['state']['lastupdated']
-    # print(last, timestamp)
-
-    ### modify the timestamp to another format
-    # tuple_time = time.strptime(timestamp, "%Y-%m-%dT%H:%M:%S")
-    # GMTtime = time.strftime("%a, %d %b %Y %X GMT", tuple_time)
-    # print("New", GMTtime)
-
-    ### this is the previously saved last stamp
-    # tuple_time = time.strptime(max_t, "%Y-%m-%dT%H:%M:%S")
-    # GMTtime = time.strftime("%a, %d %b %Y %X GMT", tuple_time)
-    # print("Record", GMTtime)
 
     if timestamp > max_t:
         max_t = timestamp
@@ -127,16 +111,6 @@ def button_pressed():
         # print("Same or older")
         return 0
 
-
-def change():
-    """
-    Get current status, and switch it
-    """
-    if state():
-        switch(off)
-    else:
-        switch(on)
-
 def flash():
     """
     Inbuilt flashing ability
@@ -156,11 +130,11 @@ def blinks_wanted():
 
     lastblink = t
     print(t)
-    wanted = int((1 + t) / 60)  # want to blink correct amount (once for minute)
+    wanted = int((1 + t) / counter_step)  # want to blink correct amount (once for minute)
     blinking = True  # blink with the first press too
     print("Wanted: ", wanted)
     print("Started")
-    return 0
+    return 1
 
 
 def control_loop():
@@ -173,7 +147,7 @@ def control_loop():
     global off_delay
     global counter_delay
     global lastblink
-    global i
+    global loops
 
     # States
     global running
@@ -187,16 +161,19 @@ def control_loop():
 
     t -= 1
 
+    if button_pressed():
+        # set current to timer
+        t = on_delay
+        lastblink = on_delay
+        print(t)
+        stopped = False
+        running = True
+        lighted = False
+        loops = 0 #reset loops
+        blinks_wanted()  # sets counters and timers and blinking = true
+
     if stopped:
-        if button_pressed():
-            # set current to timer
-            t = on_delay
-            lastblink = on_delay
-            print(t)
-            stopped = False
-            running = True
-            lighted = False
-            blinks_wanted()  # sets counters and timers and blinking = true
+        t = 0
 
     if blinking:
         if blinked < wanted:
@@ -210,7 +187,6 @@ def control_loop():
             blinking = False
 
     if running:
-
         if t <= 0:
             switch(on)
             running = False
@@ -218,13 +194,13 @@ def control_loop():
             stopped = True
             lighted = True
         # if last blink was 60s ago
-        if t < (on_delay - (i * counter_delay)):
-            i += 1
+        if t <= (on_delay - (loops * counter_delay)):
+            loops += 1
             blinks_wanted()  # sets counters and timers and blinking = true
     if lighted:
-        #if light is on, ...
+        #if light is on 60sec?
         #stay on for off_delay
-        if t <= -60:
+        if t <= -off_delay:
             switch(off)
             running = False
             blinking = False
