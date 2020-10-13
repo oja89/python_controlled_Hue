@@ -24,7 +24,7 @@ dim = 3002
 O_button = 4002
 
 # Last button press
-max_t = "2000-10-05T14:43:41"
+max_t = 0
 
 # blinker values
 wanted = 0
@@ -39,13 +39,11 @@ stopped = True
 lighted = False
 
 # timer values in secs
-loop_speed = 0.5  # 1 was too fast for blinking
-on_delay = 300  # time from press to start
+loop_speed = 1  # 0.2 was too fast for blinking
+on_delay = 300  # time from buttonpress to light on
 t = 0  # running timer
-off_delay = 60  # from start to off?
+off_delay = 120  # from start to off?
 counter_delay = 60  # blink every minute?
-lastblink = 0  # counter at last blink starting
-
 
 def switch(direction):
     """
@@ -179,7 +177,6 @@ def control_loop():
         if blinked < wanted:
             blinked += 1
             print("Blink: ", blinked)
-            #change()
             flash()
         if blinked >= wanted:
             print("Blinking done ", t)
@@ -191,12 +188,14 @@ def control_loop():
             switch(on)
             running = False
             blinking = False
-            stopped = True
+            stopped = False
             lighted = True
         # if last blink was 60s ago
-        if t <= (on_delay - (loops * counter_delay)):
+        if (t <= on_delay - (loops * counter_delay)) & (t > 0):
             loops += 1
             blinks_wanted()  # sets counters and timers and blinking = true
+
+
     if lighted:
         #if light is on 60sec?
         #stay on for off_delay
@@ -206,8 +205,6 @@ def control_loop():
             blinking = False
             stopped = True
             lighted = False
-
-
 
 
 # get last stamp first so we dont start immediately
